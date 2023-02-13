@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::error::Error;
 use std::fs::DirEntry;
+use std::time::{SystemTime, Duration};
 use rand::Rng;
 use clap::Parser;
 use anyhow::{anyhow, Result};
@@ -65,9 +66,19 @@ fn main() -> Result<(), Box<dyn Error>>{
     let args = Cli::parse();
     if !args.rotate && !args.force_duplicate {
         let sys = System::new_all();
+        let sys_time = SystemTime::now();
+        let mut cnt = 0;
         for process in sys.processes_by_name("wallpaper-pick") {
-            eprintln!("Process is already running at {}", process.pid());
-            std::process::exit(0);
+            let proc_time = SystemTime::UNIX_EPOCH + Duration::from_secs(process.start_time());
+            cnt +=1;
+            let dur = match sys_time.duration_since(proc_time) {
+                Ok(d) => d.as_secs(),
+                Err(_) => 0,
+            };
+            if cnt > 1 || dur > 3  {
+                eprintln!("Process is already running at {:?}", process.pid());
+                std::process::exit(0);
+            }
         }
     }
     loop {
