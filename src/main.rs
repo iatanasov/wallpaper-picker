@@ -26,6 +26,11 @@ struct Cli {
         required = false, num_args = 0..=10,
         default_values = &["--no-fehbg", "--bg-scale"])]
     command_args: Vec<String>,
+    #[arg(
+        long, 
+        required = false, num_args = 0..=10,
+        default_values = &["png", "jpg"])]
+    image_extentions: Vec<String>,
     /// Sleep time 
     #[arg(short, long, default_value = "7200", value_name = "SECONDS")]
     sleep: u64,
@@ -35,9 +40,12 @@ struct Cli {
     /// Force duplicate process
     #[arg(short, long, default_value = "false", value_name = "FORCE_DUPLICATE")]
     force_duplicate: bool,
+    /// Only print the image path to the standard out
+    #[arg(short, long, default_value = "false", value_name = "ONLY_PRINT")]
+    only_print: bool,
 }
 
-fn load_images(image_paths: &Vec<PathBuf>) -> Result<Vec<String>,anyhow::Error> {
+fn load_images(image_paths: &Vec<PathBuf>, image_extentions: &Vec<String>) -> Result<Vec<String>,anyhow::Error> {
     let mut images: Vec<String> = vec!();
     for dir in image_paths.into_iter() { 
         if dir.as_path().exists() {
@@ -46,8 +54,10 @@ fn load_images(image_paths: &Vec<PathBuf>) -> Result<Vec<String>,anyhow::Error> 
                 let path = entry.path();
                 if path.is_file() {
                     if let Some(ext) = path.extension() {
-                        if ext == "jpg" || ext =="png" {
-                            images.push(String::from(entry.path().as_os_str().to_str().unwrap()));
+                        for e in image_extentions {
+                            if ext.to_str().unwrap() == e {    
+                                images.push(String::from(entry.path().as_os_str().to_str().unwrap()));
+                            }
                         }
                     }
                 }
@@ -82,7 +92,7 @@ fn main() -> Result<(), Box<dyn Error>>{
         }
     }
     loop {
-        match  load_images(&args.image_paths) {
+        match  load_images(&args.image_paths, &args.image_extentions) {
             Ok(images) => {
                 let len = images.len();
 
@@ -93,11 +103,15 @@ fn main() -> Result<(), Box<dyn Error>>{
                 for a in args.command_args.iter() {
                     cmd.arg(a);
                 }
-                cmd.arg(wp);
-                let output = cmd.output().expect("failed to execute process");
-                if !output.status.success() { 
-                    eprintln!("called {:?} ", io::stderr().write_all(&output.stderr).unwrap());
-                    break;
+                if args.only_print {
+                    print!("{}", wp);
+                } else {
+                    cmd.arg(wp);
+                    let output = cmd.output().expect("failed to execute process");
+                    if !output.status.success() { 
+                        eprintln!("called {:?} ", io::stderr().write_all(&output.stderr).unwrap());
+                        break;
+                    }
                 }
             },
             Err(e) => {
