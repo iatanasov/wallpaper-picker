@@ -1,4 +1,3 @@
-
 use std::{ thread, time, fs};
 use std::io::{ self, Write};
 use std::path::PathBuf; 
@@ -19,7 +18,7 @@ struct Cli {
     #[arg(short, long, required = true, num_args = 0..=10)]
     image_paths: Vec<PathBuf>,
     /// Binary to execute
-    #[arg(short, long, required = false, value_name ="DIR", default_value="feh")]
+    #[arg(short, long, required = false, value_name ="DIR", default_value="/usr/bin/feh")]
     command: Option<String>,
     #[arg(
         long, 
@@ -74,6 +73,11 @@ fn load_images(image_paths: &Vec<PathBuf>, image_extentions: &Vec<String>) -> Re
 
 fn main() -> Result<(), Box<dyn Error>>{
     let args = Cli::parse();
+    let cmd = args.command.clone().unwrap();
+    let executable = std::path::Path::new(&cmd);
+    if !executable.is_file() {
+
+    }
     if !args.rotate && !args.force_duplicate {
         let sys = System::new_all();
         let sys_time = SystemTime::now();
@@ -99,7 +103,7 @@ fn main() -> Result<(), Box<dyn Error>>{
                 let mut rng = rand::thread_rng();
                 let i = rng.gen_range(0..len);
                 let wp = images[i].clone();
-                let mut cmd = Command::new(args.command.clone().unwrap());
+                let mut cmd = Command::new(&cmd);
                 for a in args.command_args.iter() {
                     cmd.arg(a);
                 }
