@@ -8,6 +8,11 @@ Simple utility to rotate wallpapers using feh or other utility
 ```
 cargo build --release
 ```
+## Format
+```
+cargo fmt
+```
+
 # Installation
 
 ```

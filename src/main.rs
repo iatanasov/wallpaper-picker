@@ -1,13 +1,13 @@
-use std::{ thread, time, fs};
-use std::io::{ self, Write};
-use std::path::PathBuf; 
-use std::process::Command;
+use anyhow::{anyhow, Result};
+use clap::Parser;
+use rand::Rng;
 use std::error::Error;
 use std::fs::DirEntry;
-use std::time::{SystemTime, Duration};
-use rand::Rng;
-use clap::Parser;
-use anyhow::{anyhow, Result};
+use std::io::{self, Write};
+use std::path::PathBuf;
+use std::process::Command;
+use std::time::{Duration, SystemTime};
+use std::{fs, thread, time};
 
 use sysinfo::{ProcessExt, System, SystemExt};
 
@@ -18,19 +18,25 @@ struct Cli {
     #[arg(short, long, required = true, num_args = 0..=10)]
     image_paths: Vec<PathBuf>,
     /// Binary to execute
-    #[arg(short, long, required = false, value_name ="DIR", default_value="/usr/bin/feh")]
+    #[arg(
+        short,
+        long,
+        required = false,
+        value_name = "DIR",
+        default_value = "/usr/bin/feh"
+    )]
     command: Option<String>,
     #[arg(
-        long, 
+        long,
         required = false, num_args = 0..=10,
         default_values = &["--no-fehbg", "--bg-scale"])]
     command_args: Vec<String>,
     #[arg(
-        long, 
+        long,
         required = false, num_args = 0..=10,
         default_values = &["png", "jpg"])]
     image_extentions: Vec<String>,
-    /// Sleep time 
+    /// Sleep time
     #[arg(short, long, default_value = "7200", value_name = "SECONDS")]
     sleep: u64,
     /// Rotate immediatley and exit
@@ -44,9 +50,12 @@ struct Cli {
     only_print: bool,
 }
 
-fn load_images(image_paths: &Vec<PathBuf>, image_extentions: &Vec<String>) -> Result<Vec<String>,anyhow::Error> {
-    let mut images: Vec<String> = vec!();
-    for dir in image_paths.into_iter() { 
+fn load_images(
+    image_paths: &Vec<PathBuf>,
+    image_extentions: &Vec<String>,
+) -> Result<Vec<String>, anyhow::Error> {
+    let mut images: Vec<String> = vec![];
+    for dir in image_paths.into_iter() {
         if dir.as_path().exists() {
             for entry in fs::read_dir(dir)? {
                 let entry: DirEntry = entry?;
@@ -54,8 +63,9 @@ fn load_images(image_paths: &Vec<PathBuf>, image_extentions: &Vec<String>) -> Re
                 if path.is_file() {
                     if let Some(ext) = path.extension() {
                         for e in image_extentions {
-                            if ext.to_str().unwrap() == e {    
-                                images.push(String::from(entry.path().as_os_str().to_str().unwrap()));
+                            if ext.to_str().unwrap() == e {
+                                images
+                                    .push(String::from(entry.path().as_os_str().to_str().unwrap()));
                             }
                         }
                     }
@@ -71,32 +81,30 @@ fn load_images(image_paths: &Vec<PathBuf>, image_extentions: &Vec<String>) -> Re
     return Ok(images);
 }
 
-fn main() -> Result<(), Box<dyn Error>>{
+fn main() -> Result<(), Box<dyn Error>> {
     let args = Cli::parse();
     let cmd = args.command.clone().unwrap();
     let executable = std::path::Path::new(&cmd);
-    if !executable.is_file() {
-
-    }
+    if !executable.is_file() {}
     if !args.rotate && !args.force_duplicate {
         let sys = System::new_all();
         let sys_time = SystemTime::now();
         let mut cnt = 0;
         for process in sys.processes_by_name("wallpaper-pick") {
             let proc_time = SystemTime::UNIX_EPOCH + Duration::from_secs(process.start_time());
-            cnt +=1;
+            cnt += 1;
             let dur = match sys_time.duration_since(proc_time) {
                 Ok(d) => d.as_secs(),
                 Err(_) => 0,
             };
-            if cnt > 1 || dur > 3  {
+            if cnt > 1 || dur > 3 {
                 eprintln!("Process is already running at {:?}", process.pid());
                 std::process::exit(0);
             }
         }
     }
     loop {
-        match  load_images(&args.image_paths, &args.image_extentions) {
+        match load_images(&args.image_paths, &args.image_extentions) {
             Ok(images) => {
                 let len = images.len();
 
@@ -112,21 +120,24 @@ fn main() -> Result<(), Box<dyn Error>>{
                 } else {
                     cmd.arg(wp);
                     let output = cmd.output().expect("failed to execute process");
-                    if !output.status.success() { 
-                        eprintln!("called {:?} ", io::stderr().write_all(&output.stderr).unwrap());
+                    if !output.status.success() {
+                        eprintln!(
+                            "called {:?} ",
+                            io::stderr().write_all(&output.stderr).unwrap()
+                        );
                         break;
                     }
                 }
-            },
+            }
             Err(e) => {
-                eprintln!("Error {:?}",e);
+                eprintln!("Error {:?}", e);
                 break;
             }
         }
         if args.rotate {
-            break
+            break;
         }
-        thread::sleep(time::Duration::from_secs(args.sleep)); 
+        thread::sleep(time::Duration::from_secs(args.sleep));
     }
     Ok(())
 }
