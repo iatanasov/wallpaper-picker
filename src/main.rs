@@ -1,6 +1,9 @@
 use anyhow::{anyhow, Result};
-use clap::Parser;
+use clap::{CommandFactory, Parser};
+use config::{Config, Environment, File};
+use directories_next::BaseDirs;
 use rand::Rng;
+use serde_derive::{Deserialize, Serialize};
 use std::error::Error;
 use std::fs::DirEntry;
 use std::io::{self, Write};
@@ -10,14 +13,17 @@ use std::time::{Duration, SystemTime};
 use std::{fs, thread, time};
 
 use sysinfo::{ProcessExt, System, SystemExt};
+static CONFIG_FILE_NAME: &str = "wallpaper-picker.toml";
 
-#[derive(Parser)]
+#[derive(Parser, Debug, Deserialize, Serialize, Clone)]
 #[command(name = "wallpaper-picker")]
 struct Cli {
     /// List of directories where you can find images
-    #[arg(short, long, required = true, num_args = 0..=10)]
-    image_paths: Vec<PathBuf>,
+    /// Configurable in the configuration file
+    #[arg(short, long, required = false, num_args = 0..=10)]
+    image_paths: Option<Vec<PathBuf>>,
     /// Binary to execute
+    /// Configurable in the configuration file
     #[arg(
         short,
         long,
@@ -26,6 +32,10 @@ struct Cli {
         default_value = "/usr/bin/feh"
     )]
     command: Option<String>,
+    #[arg(long, required = false, value_name = "DIR")]
+    config: Option<String>,
+    /// Configure the command that will set the wallpaper 
+    /// Configurable in the configuration file
     #[arg(
         long,
         required = false, num_args = 0..=10,
@@ -37,6 +47,7 @@ struct Cli {
         default_values = &["png", "jpg"])]
     image_extentions: Vec<String>,
     /// Sleep time
+    /// Configurable in the configuration file
     #[arg(short, long, default_value = "7200", value_name = "SECONDS")]
     sleep: u64,
     /// Rotate immediatley and exit
@@ -76,13 +87,67 @@ fn load_images(
         }
     }
     if images.len() == 0 {
-        return Err(anyhow!("No images where loaded"));
+        return Err(anyhow!("No images where loaded from {:?}",image_paths));
     }
     return Ok(images);
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let args = Cli::parse();
+    let cmd = Cli::command();
+    let mut args = Cli::parse();
+    let config_file = match args.config.clone() {
+        Some(file) => Some(File::with_name(file.as_str())),
+        None => match BaseDirs::new() {
+            Some(dirs) => Some(File::with_name(
+                format!(
+                    "{}/{}",
+                    dirs.config_dir().to_str().unwrap(),
+                    CONFIG_FILE_NAME
+                )
+                .as_str(),
+            )),
+            None => None,
+        },
+    };
+    let settings = match config_file {
+        Some(config_file) => Config::builder()
+            .add_source(config_file)
+            .add_source(Environment::with_prefix("WALLPAPER"))
+            .build()
+            .unwrap(),
+        None => Config::builder()
+            .add_source(Environment::with_prefix("WALLPAPER"))
+            .build()
+            .unwrap(),
+    };
+    if args.image_paths.is_none() {
+        if let Ok(v) = settings.get::<Vec<PathBuf>>("image_paths") {
+            args.image_paths = Some(v);
+        }
+    }
+    for a in  cmd.get_arguments() {
+        if a.get_id().to_string() == "command" {
+            if a.get_default_values()[0].to_str().unwrap() == args.command.clone().unwrap(){
+                if let Ok(v) = settings.get::<String>("command") {
+                    args.command = Some(v);
+                }
+            }
+        }
+        if a.get_id().to_string() == "command_args" {
+            if a.get_default_values() == args.command_args .clone(){
+                if let Ok(v) = settings.get::<String>("command_args") {
+                    args.command = Some(v);
+                }
+            }
+        }
+        if a.get_id().to_string() == "sleep" {
+            if a.get_default_values()[0].to_str().unwrap().parse::<u64>().unwrap() == args.sleep.clone() {
+                if let Ok(v) = settings.get::<u64>("sleep") {
+                    args.sleep = v;
+                }
+            }
+        }
+    }
     let cmd = args.command.clone().unwrap();
     let executable = std::path::Path::new(&cmd);
     if !executable.is_file() {}
@@ -104,7 +169,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
     loop {
-        match load_images(&args.image_paths, &args.image_extentions) {
+        match load_images(&args.image_paths.clone().unwrap(), &args.image_extentions) {
             Ok(images) => {
                 let len = images.len();
 
