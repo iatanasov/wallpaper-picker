@@ -34,7 +34,7 @@ struct Cli {
     command: Option<String>,
     #[arg(long, required = false, value_name = "DIR")]
     config: Option<String>,
-    /// Configure the command that will set the wallpaper 
+    /// Configure the command that will set the wallpaper
     /// Configurable in the configuration file
     #[arg(
         long,
@@ -87,7 +87,7 @@ fn load_images(
         }
     }
     if images.len() == 0 {
-        return Err(anyhow!("No images where loaded from {:?}",image_paths));
+        return Err(anyhow!("No images where loaded from {:?}", image_paths));
     }
     return Ok(images);
 }
@@ -125,23 +125,29 @@ fn main() -> Result<(), Box<dyn Error>> {
             args.image_paths = Some(v);
         }
     }
-    for a in  cmd.get_arguments() {
+    for a in cmd.get_arguments() {
         if a.get_id().to_string() == "command" {
-            if a.get_default_values()[0].to_str().unwrap() == args.command.clone().unwrap(){
+            if a.get_default_values()[0].to_str().unwrap() == args.command.clone().unwrap() {
                 if let Ok(v) = settings.get::<String>("command") {
                     args.command = Some(v);
                 }
             }
         }
         if a.get_id().to_string() == "command_args" {
-            if a.get_default_values() == args.command_args .clone(){
+            if a.get_default_values() == args.command_args.clone() {
                 if let Ok(v) = settings.get::<String>("command_args") {
                     args.command = Some(v);
                 }
             }
         }
         if a.get_id().to_string() == "sleep" {
-            if a.get_default_values()[0].to_str().unwrap().parse::<u64>().unwrap() == args.sleep.clone() {
+            if a.get_default_values()[0]
+                .to_str()
+                .unwrap()
+                .parse::<u64>()
+                .unwrap()
+                == args.sleep.clone()
+            {
                 if let Ok(v) = settings.get::<u64>("sleep") {
                     args.sleep = v;
                 }

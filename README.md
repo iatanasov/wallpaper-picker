@@ -1,7 +1,7 @@
 # wallpaper-picker
 
 Simple utility to rotate wallpapers using feh or other utility
-By default it is using feh which is working well with managers like dwm and LeftWM
+By default it is using __feh__ which is working well with managers like [dwm](https://dwm.suckless.org/),  [LeftWM](https://leftwm.org/)  and [i3](https://i3wm.org/)
 
 # Building
 
@@ -9,6 +9,7 @@ By default it is using feh which is working well with managers like dwm and Left
 cargo build --release
 ```
 ## Format
+
 ```
 cargo fmt
 ```
@@ -20,20 +21,16 @@ cargo fmt
 ```
 cargo install  --path ./
 
-```
+or
 
-## system location
-```
-cargo install --path ./ --root /usr/bin
+make install_local
+
 ```
 
 # Enable in systemd 
-Copy  [service/wallpaper-picker.service](service/wallpaper-picker.service) to /$HOME/.config/systemd/user/ .
-Configuration can be done in file
-
-Execute
+Using the make file provided
 ```
-systemctl --user enable wallpaper-picker
+make install_service
 ```
 # Usage
 ```

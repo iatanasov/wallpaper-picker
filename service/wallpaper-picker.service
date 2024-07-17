@@ -1,14 +1,12 @@
 [Unit]
-AssertPathExists=/usr/bin/wallpaper-picker
-
 
 [Service]
 WorkingDirectory=~
-ExecStart=/usr/bin/wallpaper-picker
+ExecStart=PATH_TO_BINARY
 Restart=always
 PrivateTmp=true
 NoNewPrivileges=true
 
 [Install]
 Alias=wallpaper-picker
-WantedBy=user.target
+WantedBy=default.target
