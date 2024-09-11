@@ -7,6 +7,8 @@ on:
 permissions:
   contents: write
 
+env:
+  BIN: wallpaper-picker
 jobs:
   create-release:
     name: Build and upload
@@ -77,11 +79,12 @@ jobs:
         shell: bash
         run: |
           version="${{ needs.create-release.outputs.version }}"
-          echo "ARCHIVE=wallpaper-picker-$version-${{ matrix.target }}" >> $GITHUB_ENV
+          echo "ARCHIVE=${{ env.BIN }}-${{ env.VERSION }}-${{ matrix.target }}" >> $GITHUB_ENV
       - name: Creating directory for archive
         shell: bash
         run: |
           mkdir -p "$ARCHIVE"/{complete,doc}
+          echo "cp $BIN to $ARCHIVE"
           cp "$BIN" "$ARCHIVE"/
           cp {README.md,LICENSE} "$ARCHIVE"/
           cp {GUIDE.md} "$ARCHIVE"/doc/
