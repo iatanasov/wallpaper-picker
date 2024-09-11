@@ -4,7 +4,6 @@ use config::{Config, Environment, File};
 use directories_next::BaseDirs;
 use rand::Rng;
 use serde_derive::{Deserialize, Serialize};
-use std::error::Error;
 use std::fs::DirEntry;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -66,7 +65,7 @@ fn load_images(
     image_extentions: &Vec<String>,
 ) -> Result<Vec<String>, anyhow::Error> {
     let mut images: Vec<String> = vec![];
-    for dir in image_paths.into_iter() {
+    for dir in image_paths.iter() {
         if dir.as_path().exists() {
             for entry in fs::read_dir(dir)? {
                 let entry: DirEntry = entry?;
@@ -86,13 +85,13 @@ fn load_images(
             eprintln!("Skipping {} not found", dir.to_str().unwrap())
         }
     }
-    if images.len() == 0 {
+    if images.is_empty() {
         return Err(anyhow!("No images where loaded from {:?}", image_paths));
     }
-    return Ok(images);
+    Ok(images)
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), anyhow::Error> {
     let cmd = Cli::command();
     let mut args = Cli::parse();
     let config_file = match args.config.clone() {
@@ -126,37 +125,39 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     }
     for a in cmd.get_arguments() {
-        if a.get_id().to_string() == "command" {
-            if a.get_default_values()[0].to_str().unwrap() == args.command.clone().unwrap() {
-                if let Ok(v) = settings.get::<String>("command") {
-                    args.command = Some(v);
-                }
+        if a.get_id() == "command"
+            && a.get_default_values()[0].to_str().unwrap() == args.command.clone().unwrap()
+        {
+            if let Ok(v) = settings.get::<String>("command") {
+                args.command = Some(v);
             }
         }
-        if a.get_id().to_string() == "command_args" {
-            if a.get_default_values() == args.command_args.clone() {
-                if let Ok(v) = settings.get::<String>("command_args") {
-                    args.command = Some(v);
-                }
+        if a.get_id() == "command_args" && a.get_default_values() == args.command_args.clone() {
+            if let Ok(v) = settings.get::<String>("command_args") {
+                args.command = Some(v);
             }
         }
-        if a.get_id().to_string() == "sleep" {
-            if a.get_default_values()[0]
+        if a.get_id() == "sleep"
+            && a.get_default_values()[0]
                 .to_str()
                 .unwrap()
                 .parse::<u64>()
                 .unwrap()
-                == args.sleep.clone()
-            {
-                if let Ok(v) = settings.get::<u64>("sleep") {
-                    args.sleep = v;
-                }
+                == args.sleep
+        {
+            if let Ok(v) = settings.get::<u64>("sleep") {
+                args.sleep = v;
             }
         }
     }
     let cmd = args.command.clone().unwrap();
     let executable = std::path::Path::new(&cmd);
-    if !executable.is_file() {}
+    if !executable.is_file() {
+        return Err(anyhow!(
+            "Command {:?} is not executable",
+            executable.to_str()
+        ));
+    }
     if !args.rotate && !args.force_duplicate {
         let sys = System::new_all();
         let sys_time = SystemTime::now();
@@ -178,7 +179,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         match load_images(&args.image_paths.clone().unwrap(), &args.image_extentions) {
             Ok(images) => {
                 let len = images.len();
-
                 let mut rng = rand::thread_rng();
                 let i = rng.gen_range(0..len);
                 let wp = images[i].clone();
@@ -187,7 +187,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                     cmd.arg(a);
                 }
                 if args.only_print {
-                    print!("{}", wp);
+                    println!("{}", wp);
+                    io::stdout().flush().unwrap();
                 } else {
                     cmd.arg(wp);
                     let output = cmd.output().expect("failed to execute process");
