@@ -1,13 +1,14 @@
 # wallpaper-picker
 
 Simple utility to rotate wallpapers using feh or other utility
-By default it is using __feh__ which is working well with managers like [dwm](https://dwm.suckless.org/),  [LeftWM](https://leftwm.org/)  and [i3](https://i3wm.org/)
+By default it is using **feh** which is working well with managers like [dwm](https://dwm.suckless.org/), [LeftWM](https://leftwm.org/) and [i3](https://i3wm.org/)
 
 # Building
 
 ```
 cargo build --release
 ```
+
 ## Format
 
 ```
@@ -16,7 +17,9 @@ cargo fmt
 
 # Installation
 
-## Local instalation
+##
+
+## Local instalation if you have the repository
 
 ```
 cargo install  --path ./
@@ -27,12 +30,25 @@ make install_local
 
 ```
 
-# Enable in systemd 
+# Enable in systemd
+
 Using the make file provided
+
 ```
 make install_service
 ```
+
+# Building
+
+To build:
+
+```
+
+
+```
+
 # Usage
+
 ```
 Usage: wallpaper-picker [OPTIONS]
 

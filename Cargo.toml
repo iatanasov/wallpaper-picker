@@ -9,12 +9,12 @@ opt-level = "z"
 strip = true
 
 [dependencies]
-anyhow = "1.0.69"
-clap = { version = "4.0.18", features = ["derive"] }
-config = "0.13.3"
+anyhow = "1.0.88"
+clap = { version = "4.5.17", features = ["derive"] }
+config = "0.14.0"
 directories-next = "2.0.0"
 rand = "0.8.5"
 serde = { version = "1.0.156", features = ["serde_derive"] }
 serde_derive = "1.0.156"
 serde_json = { version = "1.0.120", features = ["raw_value"] }
-sysinfo = "0.27.7"
+sysinfo = "0.31.4"

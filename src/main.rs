@@ -11,7 +11,7 @@ use std::process::Command;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread, time};
 
-use sysinfo::{ProcessExt, System, SystemExt};
+use sysinfo::System;
 static CONFIG_FILE_NAME: &str = "wallpaper-picker.toml";
 
 #[derive(Parser, Debug, Deserialize, Serialize, Clone)]
@@ -50,6 +50,7 @@ struct Cli {
     #[arg(short, long, default_value = "7200", value_name = "SECONDS")]
     sleep: u64,
     /// Rotate immediatley and exit
+    /// This will not check for running process
     #[arg(short, long, default_value = "false", value_name = "ROTATE")]
     rotate: bool,
     /// Force duplicate process
@@ -162,7 +163,7 @@ fn main() -> Result<(), anyhow::Error> {
         let sys = System::new_all();
         let sys_time = SystemTime::now();
         let mut cnt = 0;
-        for process in sys.processes_by_name("wallpaper-pick") {
+        for process in sys.processes_by_name("wallpaper-pick".as_ref()) {
             let proc_time = SystemTime::UNIX_EPOCH + Duration::from_secs(process.start_time());
             cnt += 1;
             let dur = match sys_time.duration_since(proc_time) {
