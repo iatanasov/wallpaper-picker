@@ -38,15 +38,6 @@ Using the make file provided
 make install_service
 ```
 
-# Building
-
-To build:
-
-```
-
-
-```
-
 # Usage
 
 ```
@@ -62,15 +53,17 @@ Options:
       --command-args [<COMMAND_ARGS>...]
           Configure the command that will set the wallpaper Configurable in the configuration file [default: --no-fehbg --bg-scale]
       --image-extentions [<IMAGE_EXTENTIONS>...]
-          [default: png jpg]
+          List of the image extention to be loaded from the directory [default: png jpg jpeg]
   -s, --sleep <SECONDS>
           Sleep time Configurable in the configuration file [default: 7200]
   -r, --rotate
-          Rotate immediatley and exit
+          Rotate immediatley and exit This will not check for running process
   -f, --force-duplicate
           Force duplicate process
   -o, --only-print
           Only print the image path to the standard out
+      --retries <RETRIES>
+          Retry the the command execution In some casses we might have started the loop before we need all the stuff we need [default: 10]
   -h, --help
-          Print help information
+          Print help
 ```

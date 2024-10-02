@@ -40,10 +40,11 @@ struct Cli {
         required = false, num_args = 0..=10,
         default_values = &["--no-fehbg", "--bg-scale"])]
     command_args: Vec<String>,
+    /// List of the image extention to be loaded from the directory
     #[arg(
         long,
         required = false, num_args = 0..=10,
-        default_values = &["png", "jpg"])]
+        default_values = &["png", "jpg", "jpeg"])]
     image_extentions: Vec<String>,
     /// Sleep time
     /// Configurable in the configuration file
@@ -59,6 +60,11 @@ struct Cli {
     /// Only print the image path to the standard out
     #[arg(short, long, default_value = "false", value_name = "ONLY_PRINT")]
     only_print: bool,
+    /// Retry the the command execution
+    /// In some casses we might have started the loop
+    /// before we need all the stuff we need
+    #[arg(long, default_value = "10", value_name = "RETRIES")]
+    retries: usize,
 }
 
 fn load_images(
@@ -93,21 +99,19 @@ fn load_images(
 }
 
 fn main() -> Result<(), anyhow::Error> {
-    let cmd = Cli::command();
     let mut args = Cli::parse();
-    let config_file = match args.config.clone() {
+    let config_file = match &args.config {
         Some(file) => Some(File::with_name(file.as_str())),
-        None => match BaseDirs::new() {
-            Some(dirs) => Some(File::with_name(
+        None => BaseDirs::new().map(|dirs| {
+            File::with_name(
                 format!(
                     "{}/{}",
                     dirs.config_dir().to_str().unwrap(),
                     CONFIG_FILE_NAME
                 )
                 .as_str(),
-            )),
-            None => None,
-        },
+            )
+        }),
     };
     let settings = match config_file {
         Some(config_file) => Config::builder()
@@ -120,6 +124,7 @@ fn main() -> Result<(), anyhow::Error> {
             .build()
             .unwrap(),
     };
+    let cmd = Cli::command();
     if args.image_paths.is_none() {
         if let Ok(v) = settings.get::<Vec<PathBuf>>("image_paths") {
             args.image_paths = Some(v);
@@ -127,13 +132,13 @@ fn main() -> Result<(), anyhow::Error> {
     }
     for a in cmd.get_arguments() {
         if a.get_id() == "command"
-            && a.get_default_values()[0].to_str().unwrap() == args.command.clone().unwrap()
+            && a.get_default_values()[0].to_str().unwrap() == args.command.as_ref().unwrap()
         {
             if let Ok(v) = settings.get::<String>("command") {
                 args.command = Some(v);
             }
         }
-        if a.get_id() == "command_args" && a.get_default_values() == args.command_args.clone() {
+        if a.get_id() == "command_args" && a.get_default_values() == args.command_args {
             if let Ok(v) = settings.get::<String>("command_args") {
                 args.command = Some(v);
             }
@@ -151,8 +156,8 @@ fn main() -> Result<(), anyhow::Error> {
             }
         }
     }
-    let cmd = args.command.clone().unwrap();
-    let executable = std::path::Path::new(&cmd);
+    let image_command = args.command.as_ref().unwrap();
+    let executable = std::path::Path::new(&image_command);
     if !executable.is_file() {
         return Err(anyhow!(
             "Command {:?} is not executable",
@@ -176,14 +181,20 @@ fn main() -> Result<(), anyhow::Error> {
             }
         }
     }
+    do_work(args)
+}
+/// The main loop that does the actual work
+/// to keep rotating the images
+fn do_work(args: Cli) -> Result<(), anyhow::Error> {
+    let mut error_count = 0;
+    let mut rng = rand::thread_rng();
     loop {
-        match load_images(&args.image_paths.clone().unwrap(), &args.image_extentions) {
+        match load_images(args.image_paths.as_ref().unwrap(), &args.image_extentions) {
             Ok(images) => {
                 let len = images.len();
-                let mut rng = rand::thread_rng();
                 let i = rng.gen_range(0..len);
-                let wp = images[i].clone();
-                let mut cmd = Command::new(&cmd);
+                let wp = &images[i];
+                let mut cmd = Command::new(args.command.as_ref().unwrap());
                 for a in args.command_args.iter() {
                     cmd.arg(a);
                 }
@@ -192,13 +203,20 @@ fn main() -> Result<(), anyhow::Error> {
                     io::stdout().flush().unwrap();
                 } else {
                     cmd.arg(wp);
-                    let output = cmd.output().expect("failed to execute process");
-                    if !output.status.success() {
-                        eprintln!(
-                            "called {:?} ",
-                            io::stderr().write_all(&output.stderr).unwrap()
-                        );
-                        break;
+                    match cmd.output() {
+                        Ok(output) => {
+                            if !output.status.success() {
+                                eprintln!(
+                                    "Command called {:?} ",
+                                    io::stderr().write_all(&output.stderr).unwrap()
+                                );
+                                error_count += 1;
+                            }
+                        }
+                        Err(e) => {
+                            eprintln!("Error {:?}", e);
+                            error_count += 1;
+                        }
                     }
                 }
             }
@@ -208,6 +226,9 @@ fn main() -> Result<(), anyhow::Error> {
             }
         }
         if args.rotate {
+            break;
+        }
+        if error_count >= args.retries {
             break;
         }
         thread::sleep(time::Duration::from_secs(args.sleep));
