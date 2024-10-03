@@ -11,7 +11,7 @@ use std::process::Command;
 use std::time::{Duration, SystemTime};
 use std::{fs, thread, time};
 
-use sysinfo::System;
+use sysinfo::{get_current_pid, System};
 static CONFIG_FILE_NAME: &str = "wallpaper-picker.toml";
 
 #[derive(Parser, Debug, Deserialize, Serialize, Clone)]
@@ -100,6 +100,8 @@ fn load_images(
 
 fn main() -> Result<(), anyhow::Error> {
     let mut args = Cli::parse();
+    let mut sys = System::new_all();
+    let sys_time = SystemTime::now();
     let config_file = match &args.config {
         Some(file) => Some(File::with_name(file.as_str())),
         None => BaseDirs::new().map(|dirs| {
@@ -165,10 +167,18 @@ fn main() -> Result<(), anyhow::Error> {
         ));
     }
     if !args.rotate && !args.force_duplicate {
-        let sys = System::new_all();
-        let sys_time = SystemTime::now();
         let mut cnt = 0;
+        sys.refresh_all();
+        let current_pid = if let Ok(pid) = get_current_pid() {
+            Some(pid)
+        } else {
+            None
+        };
+        //dbg!(current_pid);
         for process in sys.processes_by_name("wallpaper-pick".as_ref()) {
+            if process.parent() == current_pid {
+                continue;
+            }
             let proc_time = SystemTime::UNIX_EPOCH + Duration::from_secs(process.start_time());
             cnt += 1;
             let dur = match sys_time.duration_since(proc_time) {
@@ -176,7 +186,11 @@ fn main() -> Result<(), anyhow::Error> {
                 Err(_) => 0,
             };
             if cnt > 1 || dur > 3 {
-                eprintln!("Process is already running at {:?}", process.pid());
+                eprintln!("Number of process running {cnt}");
+                eprintln!(
+                    "Process is already running at {:?} for the duration of {dur}",
+                    process.pid()
+                );
                 std::process::exit(0);
             }
         }
