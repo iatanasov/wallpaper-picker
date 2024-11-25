@@ -221,10 +221,14 @@ fn do_work(args: Cli) -> Result<(), anyhow::Error> {
                         Ok(output) => {
                             if !output.status.success() {
                                 eprintln!(
-                                    "Command called {:?} ",
-                                    io::stderr().write_all(&output.stderr).unwrap()
+                                    "Command called {:?} :: {}",
+                                    io::stderr().write_all(&output.stderr).unwrap(),
+                                    error_count
                                 );
                                 error_count += 1;
+                                eprintln!("Increment error {}", error_count);
+                            } else {
+                                error_count = 0
                             }
                         }
                         Err(e) => {
@@ -245,7 +249,11 @@ fn do_work(args: Cli) -> Result<(), anyhow::Error> {
         if error_count >= args.retries {
             break;
         }
-        thread::sleep(time::Duration::from_secs(args.sleep));
+        if error_count > 0 {
+            thread::sleep(time::Duration::from_secs(10));
+        } else {
+            thread::sleep(time::Duration::from_secs(args.sleep));
+        }
     }
     Ok(())
 }
