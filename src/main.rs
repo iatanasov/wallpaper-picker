@@ -1,9 +1,10 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, bail, Result};
 use clap::{CommandFactory, Parser};
 use config::{Config, Environment, File};
 use directories_next::BaseDirs;
 use rand::Rng;
 use serde_derive::{Deserialize, Serialize};
+use std::ffi::OsStr;
 use std::fs::DirEntry;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -76,14 +77,10 @@ fn load_images(
         if dir.as_path().exists() {
             for entry in fs::read_dir(dir)? {
                 let entry: DirEntry = entry?;
-                let path = entry.path();
-                if path.is_file() {
-                    if let Some(ext) = path.extension() {
-                        for e in image_extentions {
-                            if ext.to_str().unwrap() == e {
-                                images
-                                    .push(String::from(entry.path().as_os_str().to_str().unwrap()));
-                            }
+                if entry.path().is_file() {
+                    if let Some(ext) = entry.path().extension() {
+                        if is_allowed_extension(ext, image_extentions) {
+                            images.push(String::from(entry.path().as_os_str().to_str().unwrap()));
                         }
                     }
                 }
@@ -98,6 +95,16 @@ fn load_images(
     Ok(images)
 }
 
+fn is_allowed_extension(ext: &OsStr, image_extentions: &Vec<String>) -> bool {
+    if let Some(ext) = ext.to_str() {
+        for e in image_extentions {
+            if ext == e {
+                return true;
+            }
+        }
+    }
+    false
+}
 fn main() -> Result<(), anyhow::Error> {
     let mut args = Cli::parse();
     let mut sys = System::new_all();
@@ -201,53 +208,48 @@ fn main() -> Result<(), anyhow::Error> {
 /// to keep rotating the images
 fn do_work(args: Cli) -> Result<(), anyhow::Error> {
     let mut error_count = 0;
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     loop {
-        match load_images(args.image_paths.as_ref().unwrap(), &args.image_extentions) {
-            Ok(images) => {
-                let len = images.len();
-                let i = rng.gen_range(0..len);
-                let wp = &images[i];
-                let mut cmd = Command::new(args.command.as_ref().unwrap());
-                for a in args.command_args.iter() {
-                    cmd.arg(a);
-                }
-                if args.only_print {
-                    println!("{}", wp);
-                    io::stdout().flush().unwrap();
+        let images = load_images(args.image_paths.as_ref().unwrap(), &args.image_extentions)?;
+        let i = rng.random_range(0..images.len());
+        let wp = &images[i];
+        if args.only_print {
+            println!("{}", wp);
+            io::stdout().flush()?;
+            break;
+        }
+        let mut cmd = Command::new(args.command.as_ref().unwrap());
+        args.command_args.iter().for_each(|a| {
+            cmd.arg(a);
+        });
+        cmd.arg(wp);
+        match cmd.output() {
+            Ok(output) => {
+                if !output.status.success() {
+                    eprintln!(
+                        "Command called {:?} :: {}",
+                        io::stderr().write_all(&output.stderr)?,
+                        error_count
+                    );
+                    error_count += 1;
+                    eprintln!("Increment error {}", error_count);
                 } else {
-                    cmd.arg(wp);
-                    match cmd.output() {
-                        Ok(output) => {
-                            if !output.status.success() {
-                                eprintln!(
-                                    "Command called {:?} :: {}",
-                                    io::stderr().write_all(&output.stderr).unwrap(),
-                                    error_count
-                                );
-                                error_count += 1;
-                                eprintln!("Increment error {}", error_count);
-                            } else {
-                                error_count = 0
-                            }
-                        }
-                        Err(e) => {
-                            eprintln!("Error {:?}", e);
-                            error_count += 1;
-                        }
-                    }
+                    error_count = 0
                 }
             }
             Err(e) => {
                 eprintln!("Error {:?}", e);
-                break;
+                error_count += 1;
             }
         }
         if args.rotate {
             break;
         }
         if error_count >= args.retries {
-            break;
+            bail!(
+                "Too many errors {error_count} is more than {}",
+                args.retries
+            );
         }
         if error_count > 0 {
             thread::sleep(time::Duration::from_secs(10));
@@ -256,4 +258,24 @@ fn do_work(args: Cli) -> Result<(), anyhow::Error> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::ffi::OsStr;
+
+    use crate::is_allowed_extension;
+
+    #[test]
+    fn is_allowed_extension_true() {
+        let ext = OsStr::new("png");
+        let image_extentions = vec![String::from("png"), String::from("jpg")];
+        assert!(is_allowed_extension(ext, &image_extentions))
+    }
+    #[test]
+    fn is_allowed_extension_false() {
+        let ext = OsStr::new("gif");
+        let image_extentions = vec![String::from("png"), String::from("jpg")];
+        assert!(!is_allowed_extension(ext, &image_extentions))
+    }
 }
